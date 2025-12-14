@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Food Truck Tycoon - Detailed</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #87CEEB; /* Sky blue */
+            touch-action: none; /* Prevents scrolling on mobile */
+            user-select: none;
+        }
+        #game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        #upgrade-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #03a9f4; /* Blue */
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 6;
+            pointer-events: all; /* Important: allow clicks */
+        }
+        #start-screen {
+            /* ... (Styling remains the same for the start screen) ... */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255,152,0,0.9), rgba(233,30,99,0.9));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        h1 {
+            font-size: 40px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 0px #333;
+        }
+        #start-screen button {
+            /* Ensures button styling consistency */
+            padding: 15px 50px;
+            font-size: 24px;
+            background-color: #fff;
+            color: #e91e63;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+        #start-screen button:active {
+            transform: scale(0.95);
+        }
+        #instructions {
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 18px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+        /* --- UPGRADE MODAL STYLES --- */
+        #upgrade-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            display: none; /* Hidden by default */
+        }
+        .modal-content {
+            background: #fff;
+            padding: 25px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            color: #333;
+            text-align: center;
+        }
+        .upgrade-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            text-align: left;
+        }
+        .upgrade-item h3 {
+            margin-top: 0;
+            color: #03a9f4;
+            font-size: 20px;
+        }
+        .upgrade-item p {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .upgrade-item button {
+            float: right;
+            padding: 8px 15px;
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.1s;
+        }
+        .upgrade-item button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #close-modal-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-ui">
+        <div>💰 Cash: $<span id="score">0</span></div>
+        <div>⭐ Popularity: <span id="popularity">50</span>%</div>
+    </div>
+    
+    <button id="upgrade-btn" style="display: none;">UPGRADES</button>
+
+    <div id="start-screen">
+        <h1>🚚 Street Eats 3D</h1>
+        <div id="instructions">
+            <b>Deluxe Edition</b><br><br>
+            Tap the hungry customers to feed them.<br>
+            Serve them fast to boost your **Popularity**!
+        </div>
+        <button id="start-btn">OPEN FOR BUSINESS</button>
+    </div>
+
+    <!-- UPGRADE MODAL -->
+    <div id="upgrade-modal">
+        <div class="modal-content">
+            <h2>Upgrades Available</h2>
+            <div id="upgrade-list">
+                <!-- Upgrade items will be rendered here by JS -->
+            </div>
+            <button id="close-modal-btn">Close</button>
+        </div>
+    </div>
+
+    <!-- Import Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- GAME VARIABLES ---
+        let scene, camera, renderer;
+        let customers = []; 
+        let score = 0;
+        let popularity = 50; 
+        let isGameActive = false;
+        let lastTime = 0;
+        let spawnTimer = 0;
+
+        // Upgradeable Variable
+        let POPULARITY_GAIN = 5; 
+
+        // Popularity Constants
+        const MAX_POPULARITY = 100;
+        const MIN_POPULARITY = 0;
+        const POPULARITY_LOSS = 10; 
+        const MIN_SPAWN_MS = 500;   
+        const MAX_SPAWN_MS = 3000;  
+
+        // DOM Elements
+        const scoreElement = document.getElementById('score');
+        const popularityElement = document.getElementById('popularity');
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+        const upgradeBtn = document.getElementById('upgrade-btn');
+        const upgradeModal = document.getElementById('upgrade-modal');
+        const upgradeList = document.getElementById('upgrade-list');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+
+        // Upgrade Configuration
+        const UPGRADES = [
+            {
+                id: 'service_training',
+                name: 'Service Training',
+                description: 'Increases Popularity gained per serve by 2 points.',
+                levels: [
+                    { cost: 100, bonus: 2, currentLevel: 0 },
+                    { cost: 300, bonus: 2 },
+                    { cost: 700, bonus: 2 },
+                ]
+            }
+        ];
+
+        // Raycaster
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // --- MATERIALS (Reused for performance) ---
+        const matWhite = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.3 });
+        const matOrange = new THREE.MeshStandardMaterial({ color: 0xFF9800 });
+        const matGrey = new THREE.MeshStandardMaterial({ color: 0x555555 });
+        const matDark = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const matGlass = new THREE.MeshStandardMaterial({ color: 0x87CEEB, roughness: 0.0, metalness: 0.5, transparent: true, opacity: 0.7 });
+        const matTire = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        const matSkin = new THREE.MeshStandardMaterial({ color: 0xffccaa }); 
+        const matGround = new THREE.MeshLambertMaterial({ color: 0x5fa052 }); 
+
+        // --- INITIALIZATION ---
+        function init() {
+            // 1. Scene setup (omitted for brevity, assume detailed truck and environment functions exist)
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); 
+            scene.fog = new THREE.Fog(0x87CEEB, 15, 60);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 6, 12);
+            camera.lookAt(0, 1, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+            document.body.appendChild(renderer.domElement);
+
+            addLighting();
+            createEnvironment();
+            createDetailedTruck();
+
+            // 6. Events
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('pointerdown', onPointerDown);
+            startBtn.addEventListener('click', startGame);
+            
+            // New Upgrade Button Events
+            upgradeBtn.addEventListener('click', openUpgradeModal);
+            closeModalBtn.addEventListener('click', closeUpgradeModal);
+
+            // Initial UI update
+            popularityElement.innerText = popularity;
+            
+            animate(0);
+        }
+
+        function addLighting() {
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            sunLight.position.set(10, 20, 10);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            scene.add(sunLight);
+        }
+
+        // Re-included helper functions to ensure completeness
+        function createEnvironment() {
+            const groundGeo = new THREE.PlaneGeometry(200, 200);
+            const ground = new THREE.Mesh(groundGeo, matGround);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            const roadGeo = new THREE.PlaneGeometry(200, 8);
+            const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+            const road = new THREE.Mesh(roadGeo, roadMat);
+            road.rotation.x = -Math.PI / 2;
+            road.position.y = 0.02;
+            road.position.z = 4; 
+            road.receiveShadow = true;
+            scene.add(road);
+
+            const matTrunk = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const matLeaves = new THREE.MeshStandardMaterial({ color: 0x2E7D32 });
+            for(let i=0; i<6; i++) {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 1.5, 6), matTrunk);
+                trunk.position.y = 0.75;
+                trunk.castShadow = true;
+                const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3, 8), matLeaves);
+                leaves.position.y = 2.5;
+                leaves.castShadow = true;
+                tree.add(trunk);
+                tree.add(leaves);
+                tree.position.z = -5 - Math.random() * 10;
+                tree.position.x = (Math.random() - 0.5) * 40;
+                scene.add(tree);
+            }
+        }
+
+        function createDetailedTruck() {
+            const truckGroup = new THREE.Group();
+            const kitchen = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.8, 2.2), matWhite);
+            kitchen.position.y = 1.9;
+            kitchen.castShadow = true;
+            kitchen.receiveShadow = true;
+            truckGroup.add(kitchen);
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.0, 2.1), matWhite);
+            cab.position.set(3.0, 1.5, 0); 
+            cab.castShadow = true;
+            truckGroup.add(cab);
+            const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 2.15), matGlass);
+            windshield.position.set(3.1, 1.8, 0);
+            truckGroup.add(windshield);
+            
+            const wheelGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.4, 24);
+            const rimMat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC });
+            const wheelPositions = [
+                { x: -1.5, z: 1 }, { x: -1.5, z: -1 }, 
+                { x: 2.8, z: 1 },  { x: 2.8, z: -1 }   
+            ];
+            wheelPositions.forEach(pos => {
+                const wheelGroup = new THREE.Group();
+                const tire = new THREE.Mesh(wheelGeo, matTire);
+                tire.rotation.z = Math.PI / 2;
+                tire.castShadow = true;
+                const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.42, 8), rimMat);
+                rim.rotation.z = Math.PI / 2;
+                wheelGroup.add(tire);
+                wheelGroup.add(rim);
+                wheelGroup.position.set(pos.x, 0.6, pos.z);
+                truckGroup.add(wheelGroup);
+            });
+
+            const hatch = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.2, 0.1), matDark);
+            hatch.position.set(0, 2.0, 1.11);
+            truckGroup.add(hatch);
+            const counter = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.1, 0.6), matGrey);
+            counter.position.set(0, 1.4, 1.4);
+            truckGroup.add(counter);
+
+            const awningGroup = new THREE.Group();
+            const segWidth = 0.4;
+            const numSegs = 7;
+            for(let i=0; i<numSegs; i++) {
+                const mat = (i % 2 === 0) ? new THREE.MeshStandardMaterial({color: 0xff0000}) : new THREE.MeshStandardMaterial({color: 0xffffff});
+                const seg = new THREE.Mesh(new THREE.BoxGeometry(segWidth, 0.1, 1.2), mat);
+                seg.position.x = (i * segWidth) - (segWidth * numSegs / 2) + (segWidth/2);
+                awningGroup.add(seg);
+            }
+            awningGroup.position.set(0, 2.7, 1.6);
+            awningGroup.rotation.x = 0.3;
+            truckGroup.add(awningGroup);
+
+            const lightMat = new THREE.MeshStandardMaterial({ color: 0xFFFF00, emissive: 0xaa8800 });
+            const lightL = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), lightMat);
+            lightL.position.set(3.7, 0.8, 0.6);
+            const lightR = lightL.clone();
+            lightR.position.set(3.7, 0.8, -0.6);
+            truckGroup.add(lightL, lightR);
+
+            const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 2.2), matGrey);
+            bumper.position.set(3.7, 0.4, 0);
+            truckGroup.add(bumper);
+
+            const signPole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.1), matGrey);
+            signPole.position.set(-1, 3.4, 0);
+            truckGroup.add(signPole);
+            
+            const signBoard = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 0.2), matOrange);
+            signBoard.position.set(-1, 3.8, 0);
+            truckGroup.add(signBoard);
+
+            scene.add(truckGroup);
+        }
+        
+        function spawnCustomer() {
+            const customerGroup = new THREE.Group();
+
+            const shirtColor = new THREE.Color().setHSL(Math.random(), 0.8, 0.5);
+            const matShirt = new THREE.MeshStandardMaterial({ color: shirtColor });
+            const matPants = new THREE.MeshStandardMaterial({ color: 0x333399 }); 
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.3), matShirt);
+            body.position.y = 1.1;
+            body.castShadow = true;
+            customerGroup.add(body);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), matSkin);
+            head.position.y = 1.7;
+            head.castShadow = true;
+            customerGroup.add(head);
+
+            const legGeo = new THREE.BoxGeometry(0.2, 0.75, 0.25);
+            const leftLeg = new THREE.Mesh(legGeo, matPants);
+            leftLeg.position.set(-0.15, 0.375, 0);
+            customerGroup.add(leftLeg);
+
+            const rightLeg = new THREE.Mesh(legGeo, matPants);
+            rightLeg.position.set(0.15, 0.375, 0);
+            customerGroup.add(rightLeg);
+
+            const armGeo = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+            const leftArm = new THREE.Mesh(armGeo, matSkin);
+            leftArm.position.set(-0.4, 1.1, 0);
+            customerGroup.add(leftArm);
+
+            const rightArm = new THREE.Mesh(armGeo, matSkin);
+            rightArm.position.set(0.4, 1.1, 0);
+            customerGroup.add(rightArm);
+
+            const startSide = Math.random() > 0.5 ? -1 : 1;
+            customerGroup.position.set(startSide * 20, 0, 4.5); 
+            customerGroup.rotation.y = (startSide === 1) ? -Math.PI / 2 : Math.PI / 2;
+
+            customerGroup.userData = {
+                speed: (Math.random() * 0.04) + 0.04,
+                direction: -startSide,
+                served: false,
+                bobOffset: Math.random() * 10
+            };
+
+            scene.add(customerGroup);
+            customers.push(customerGroup);
+        }
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            upgradeBtn.style.display = 'block'; // Show upgrade button
+            score = 0;
+            popularity = 50; 
+            POPULARITY_GAIN = 5; // Reset gain
+            UPGRADES[0].levels[0].currentLevel = 0; // Reset level
+
+            scoreElement.innerText = score;
+            popularityElement.innerText = popularity;
+            
+            isGameActive = true;
+            // Clear any lingering customers
+            customers.forEach(c => scene.remove(c));
+            customers = [];
+        }
+
+        function openUpgradeModal() {
+            isGameActive = false; // Pause game
+            renderUpgradeList();
+            upgradeModal.style.display = 'flex';
+        }
+
+        function closeUpgradeModal() {
+            upgradeModal.style.display = 'none';
+            isGameActive = true; // Resume game
+        }
+
+        function renderUpgradeList() {
+            upgradeList.innerHTML = ''; // Clear previous list
+
+            UPGRADES.forEach(upgrade => {
+                const currentLevel = upgrade.levels[0].currentLevel;
+                const nextLevelIndex = currentLevel;
+                const nextLevel = upgrade.levels[nextLevelIndex];
+                
+                let buttonHTML;
+                
+                if (nextLevel) {
+                    const canAfford = score >= nextLevel.cost;
+                    buttonHTML = `<button onclick="buyUpgrade('${upgrade.id}', ${nextLevelIndex})" ${canAfford ? '' : 'disabled'}>
+                                  Buy ($${nextLevel.cost})
+                                  </button>`;
+                } else {
+                    buttonHTML = `<button disabled style="background-color: #4CAF50;">MAX LEVEL</button>`;
+                }
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'upgrade-item';
+                itemDiv.innerHTML = `
+                    <h3>${upgrade.name} (Lvl ${currentLevel} / ${upgrade.levels.length})</h3>
+                    <p>${upgrade.description}</p>
+                    <p>Current Bonus: +${POPULARITY_GAIN} Pop. per Serve</p>
+                    ${buttonHTML}
+                `;
+                upgradeList.appendChild(itemDiv);
+            });
+        }
+
+        window.buyUpgrade = function(id, levelIndex) {
+            const upgrade = UPGRADES.find(u => u.id === id);
+            const level = upgrade.levels[levelIndex];
+
+            if (score >= level.cost) {
+                score -= level.cost;
+                scoreElement.innerText = score;
+                
+                // Apply Upgrade Effect
+                if (id === 'service_training') {
+                    POPULARITY_GAIN += level.bonus;
+                }
+                
+                // Advance Level
+                upgrade.levels[0].currentLevel += 1;
+                
+                // Re-render the list
+                renderUpgradeList();
+            }
+        };
+
+
+        function onPointerDown(event) {
+            if (!isGameActive) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(customers, true);
+
+            if (intersects.length > 0) {
+                let target = intersects[0].object;
+                
+                while(target.parent && target.parent !== scene) {
+                    if (target.userData && target.userData.direction !== undefined) {
+                        break; 
+                    }
+                    target = target.parent;
+                }
+
+                if (target.userData && target.userData.direction !== undefined) {
+                    serveCustomer(target);
+                }
+            }
+        }
+
+        function serveCustomer(customerGroup) {
+            if (customerGroup.userData.served) return;
+            
+            customerGroup.userData.served = true;
+            
+            // --- POPULARITY INCREASE (Uses upgraded POPULARITY_GAIN) ---
+            popularity = Math.min(MAX_POPULARITY, popularity + POPULARITY_GAIN);
+            popularityElement.innerText = popularity; 
+            
+            customerGroup.children[0].material = new THREE.MeshStandardMaterial({ color: 0x4CAF50 });
+            
+            setTimeout(() => {
+                scene.remove(customerGroup);
+                customers = customers.filter(c => c !== customerGroup);
+            }, 300);
+
+            // Score
+            score += 15;
+            scoreElement.innerText = score;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- MAIN GAME LOOP ---
+        function animate(time) {
+            requestAnimationFrame(animate);
+
+            const dt = time - lastTime;
+            lastTime = time;
+
+            if (isGameActive) {
+                // DYNAMIC SPAWNING LOGIC
+                const popularity_factor = popularity / MAX_POPULARITY; 
+                const targetSpawnRate = MAX_SPAWN_MS - (popularity_factor * (MAX_SPAWN_MS - MIN_SPAWN_MS));
+
+                if (time - spawnTimer > targetSpawnRate) {
+                    spawnCustomer();
+                    spawnTimer = time;
+                }
+
+                // Update Customers
+                for (let i = customers.length - 1; i >= 0; i--) {
+                    const c = customers[i];
+                    
+                    if (!c.userData.served) {
+                        // Move and walk animation (omitted details)
+                        const walkCycle = Math.sin((time * 0.01) + c.userData.bobOffset);
+                        c.position.x += c.userData.speed * c.userData.direction;
+                        c.position.y = Math.abs(walkCycle * 0.1); 
+                        c.rotation.z = walkCycle * 0.05;
+
+                        // Check if they passed the truck (MISSED CUSTOMER)
+                        if (Math.abs(c.position.x) > 22) {
+                            // --- POPULARITY DECREASE ---
+                            popularity = Math.max(MIN_POPULARITY, popularity - POPULARITY_LOSS);
+                            popularityElement.innerText = popularity; 
+                            
+                            scene.remove(c);
+                            customers.splice(i, 1);
+                        }
+                    } else {
+                        // Success Animation
+                        c.position.y += 0.2;
+                        c.rotation.y += 0.5;
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
